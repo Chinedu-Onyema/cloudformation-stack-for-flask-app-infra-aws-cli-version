@@ -1,0 +1,49 @@
+[
+  {
+    "ParameterKey": "AmiId",
+    "ParameterValue": "ami-0dc38daec9e0d4d63"    
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t3.micro"
+  },
+  {
+    "ParameterKey": "DBUsername",
+    "ParameterValue": "admin"
+  },
+  {
+    "ParameterKey": "DBPassword",
+    "ParameterValue": "Admin12345678"
+  },
+  {
+    "ParameterKey": "DBName",
+    "ParameterValue": "Employees"
+  },
+  {
+    "ParameterKey": "DBInstanceClass",
+    "ParameterValue": "db.t3.micro"
+  },
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "vpc-09b4e0f22a1ac28c8"
+  },
+  {
+    "ParameterKey": "SubnetId",
+    "ParameterValue": "subnet-0f04d9aeed7d7b275"
+  },
+  {
+    "ParameterKey": "DBSubnetIds",
+    "ParameterValue": "subnet-0fed1d08df2504e09, subnet-0f7ed901b12d7ed66"
+  },
+  {
+    "ParameterKey": "MultiAZDeployment",
+    "ParameterValue": "false"
+  },
+  {
+    "ParameterKey": "ExistingS3BucketName",
+    "ParameterValue": "my-photo-albums-123"       
+  }
+]
+
+
+

@@ -1,0 +1,293 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CLOUDFORMATION APPLICATION INFRASTRUCTURE'
+
+Parameters:
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Default: <your-AMI-id>       # replace with the AMI of your own account
+    Description: AMI ID for EC2 instance (Amazon Linux 3)
+  
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Description: EC2 instance type
+  
+  DBUsername:
+    Type: String
+    Default: admin
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    Description: Database admin username
+  
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Must contain only alphanumeric characters (minimum 8 characters)
+    Description: Database admin password
+  
+  DBName:
+    Type: String
+    Default: Employees
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    Description: Database name
+  
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+    Description: RDS instance type
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID where resources will be deployed
+  
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID for EC2 instance
+  
+  DBSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnet IDs for RDS (minimum 2 subnets required even for single AZ)
+  
+  MultiAZDeployment:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Enable Multi-AZ deployment for RDS
+
+   # existing s3 bucket
+  ExistingS3BucketName:
+    Type: String
+    Description: Name of the existing S3 bucket for photos
+    Default: my-photo-albums-123
+
+Resources:
+  # IAM Role for EC2 Instance
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Policies:
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                Resource: '*'
+      Tags:
+        - Key: Name
+          Value: EC2S3RDSCloudFormationRole
+
+  # IAM Instance Profile
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2InstanceRole
+
+  # Security Group for EC2 Instance
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Flask application EC2 instance
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTP traffic
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: Allow SSH access
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: EC2CloudFormationSG
+
+  # Security Group for RDS
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS MySQL database
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref EC2SecurityGroup
+          Description: Allow MySQL access from EC2 instances
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: RDSCloudFormationSG
+
+  # DB Subnet Group
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS instance
+      SubnetIds: !Ref DBSubnetIds
+      Tags:
+        - Key: Name
+          Value: subnetgroup
+
+  # RDS MySQL Database
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub '${AWS::StackName}-CloudFormation-mysql-db'
+      DBName: !Ref DBName
+      Engine: mysql
+      EngineVersion: '8.4.8'   # change to '8.4.8' from (8.0.35) SQL engine after observing failure
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: 20
+      StorageType: gp3
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      PubliclyAccessible: false
+      MultiAZ: !Ref MultiAZDeployment
+      Tags:
+        - Key: Name
+          Value: Employees
+
+  # EC2 Instance
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: RDSInstance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
+      SubnetId: !Ref SubnetId
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -ex
+          wget https://aws-tc-largeobjects.s3-us-west-2.amazonaws.com/DEV-AWS-MO-GCNv2/FlaskApp.zip
+          unzip FlaskApp.zip
+          cd FlaskApp/
+          yum -y install python3-pip
+          pip install -r requirements.txt
+          yum -y install stress
+          
+          # S3 bucket for photos
+          export PHOTOS_BUCKET=${ExistingS3BucketName}
+          export AWS_DEFAULT_REGION=${AWS::Region}
+          
+          # Switch to RDS mode
+          export DYNAMO_MODE=off
+          
+          # RDS connection parameters
+          export RDS_ENDPOINT=${RDSInstance.Endpoint.Address}
+          export RDS_PORT=${RDSInstance.Endpoint.Port}
+          export RDS_DB_NAME=${DBName}
+          export RDS_USERNAME=${DBUsername}
+          export RDS_PASSWORD=${DBPassword}
+          
+          # Alternative connection string format
+          export DATABASE_URL=mysql://${DBUsername}:${DBPassword}@${RDSInstance.Endpoint.Address}:${RDSInstance.Endpoint.Port}/${DBName}
+          
+          export FLASK_APP=application.py
+          nohup /usr/local/bin/flask run --host=0.0.0.0 --port=80 > /var/log/flask.log 2>&1 &
+      Tags:
+        - Key: Name
+          Value: employee_instance
+
+Outputs:
+  EC2InstancePublicIP:
+    Description: Public IP address of the EC2 instance
+    Value: !GetAtt EC2Instance.PublicIp
+    Export:
+      Name: !Sub '${AWS::StackName}-EC2-PublicIP'
+
+  EC2InstancePublicDNS:
+    Description: Public DNS name of the EC2 instance
+    Value: !GetAtt EC2Instance.PublicDnsName
+    Export:
+      Name: !Sub '${AWS::StackName}-EC2-PublicDNS'
+
+  ApplicationURL:
+    Description: URL to access the Flask application
+    Value: !Sub 'http://${EC2Instance.PublicDnsName}'
+
+  RDSEndpoint:
+    Description: RDS MySQL database endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-RDS-Endpoint'
+
+  RDSPort:
+    Description: RDS MySQL database port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-RDS-Port'
+
+  S3BucketName:
+    Description: Name of the S3 bucket for photos
+    Value: !Ref ExistingS3BucketName
+    Export:
+      Name: !Sub '${AWS::StackName}-S3-Bucket'
+
+  DatabaseName:
+    Description: Name of the MySQL database
+    Value: !Ref DBName
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
