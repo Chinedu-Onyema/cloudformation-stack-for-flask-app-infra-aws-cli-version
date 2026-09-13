@@ -1,7 +1,7 @@
 # AWS CloudFormation Deployment Guide with AWS CLI: Flask App Infrastructure
 
 This is a complete step-by-step guide for deploying and managing the AWS infrastructure for a Flask Employee Directory Application using the AWS CLI, WSL (Windows Subsystem for Linux), and CloudFormation templates.
-
+### WATCH VIDEO WALKTHROUGH HERE: https://youtu.be/BNAkguhBMYk
 
 ## PREREQUISITES
 OS: Windows Subsystem for Linux (WSL) or Linux/macOS terminal environment.
