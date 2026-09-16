@@ -2,7 +2,8 @@
 
 This is a complete step-by-step guide for deploying and managing the AWS infrastructure for a Flask Employee Directory Application using the AWS CLI, WSL (Windows Subsystem for Linux), and CloudFormation templates.
 
-### PDF GUIDE: [CREATE A CLOUDFORMATION STACK FOR YOUR FLASK APP INFRASTRUCTURE WITH THE COMMAND LINE.pdf](https://github.com/user-attachments/files/32284547/CREATE.A.CLOUDFORMATION.STACK.FOR.YOUR.FLASK.APP.INFRASTRUCTURE.WITH.THE.COMMAND.LINE.pdf)
+### PDF GUIDE: [CREATE A CLOUDFORMATION STACK FOR YOUR FLASK APP WITH THE COMMAND LINE.pdf](https://github.com/user-attachments/files/32284604/CREATE.A.CLOUDFORMATION.STACK.FOR.YOUR.FLASK.APP.WITH.THE.COMMAND.LINE.pdf)
+
 
 ### WATCH VIDEO WALKTHROUGH HERE: https://youtu.be/BNAkguhBMYk
 
